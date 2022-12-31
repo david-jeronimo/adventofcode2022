@@ -53,14 +53,14 @@ object AOC_22 {
     case class State(position: Position, compass: Compass)
 
     def findPassword(source: Source): Int = {
-        val (map, movements) = populateInput(source.getLines().toList)
+        val (world, movements) = populateInput(source.getLines().toList)
         val emptyCellPositions = for {
-            (row, i) <- map.zipWithIndex
+            (row, i) <- world.zipWithIndex
             (cell, j) <- row.zipWithIndex
             if cell == Empty
         } yield Position(j, i)
         val startPosition = emptyCellPositions.minBy(p => (p.y, p.x))
-        val result = movements.foldLeft(State(startPosition, East))((s, m) =>findPath(map, s, m))
+        val result = movements.foldLeft(State(startPosition, East))(findPath(world, _, _))
         (result.position.y + 1) * 1000 + (result.position.x + 1) * 4 + result.compass.value
     }
 
@@ -81,7 +81,7 @@ object AOC_22 {
         ).toArray
     }
 
-    def populateMovements(line: String): List[Movement] = {
+    def populateMovements(line: String): List[Movement] =
         line.foldLeft(List[Movement]())(
             (movements, c) => movements match {
                 case Nil => List(Forward(c - '0'))
@@ -91,17 +91,15 @@ object AOC_22 {
                 case Forward(n)::ms => Forward(n * 10 + (c - '0')) +: ms
             }
         ).reverse
-    }
 
-    def findPath(world: World, state: State, movement: Movement): State = {
+    def findPath(world: World, state: State, movement: Movement): State =
         (state.position, state.compass, movement) match {
             case (p, c, Turn(d)) => State(p, c.turn(d))
             case (p, c, Forward(n)) => State(move(world, p, c, n), c)
         }
-    }
 
     @tailrec
-    def move(world: World, position: Position, compass: Compass, steps: Int): Position = {
+    def move(world: World, position: Position, compass: Compass, steps: Int): Position =
         steps match {
             case 0 => position
             case _ =>
@@ -111,7 +109,6 @@ object AOC_22 {
                     case Empty => move(world, nextPos, compass, steps - 1)
                 }
         }
-    }
 
     def nextPosition(world: World, position: Position, compass: Compass): Position = {
         val nextPosition = compass.next(position)

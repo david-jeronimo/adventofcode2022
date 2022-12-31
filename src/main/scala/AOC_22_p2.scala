@@ -25,12 +25,7 @@ object AOC_22_p2 {
     case class Turn(direction: Direction) extends Movement
 
     case class Position(x: Int, y: Int)
-
-    case class Area(id: Int, position: Position, connections: mutable.Map[Compass, (Area, Compass)]) {
-        override def toString: String = {
-            id + ": " + position.toString + ", " + connections.map(e => e._1.toString + ": " + e._2._1.id + "/" + e._2._2.toString)
-        }
-    }
+    case class Area(id: Int, position: Position, connections: mutable.Map[Compass, (Area, Compass)])
 
     type AreaMapExistence = Array[Array[Boolean]]
     type AreaMap = List[Area]
@@ -73,7 +68,7 @@ object AOC_22_p2 {
             if cell == Empty
         } yield Position(j, i)
         val startPosition = emptyCellPositions.minBy(p => (p.y, p.x))
-        val result = movements.foldLeft(State(startPosition, East))((s, m) =>findPath(map, areaMap, areaWidth, s, m))
+        val result = movements.foldLeft(State(startPosition, East))((s, m) => findPath(map, areaMap, areaWidth, s, m))
         (result.position.y + 1) * 1000 + (result.position.x + 1) * 4 + result.compass.value
     }
 
@@ -94,7 +89,7 @@ object AOC_22_p2 {
         ).toArray
     }
 
-    def populateMovements(line: String): List[Movement] = {
+    def populateMovements(line: String): List[Movement] =
         line.foldLeft(List[Movement]())(
             (movements, c) => movements match {
                 case Nil => List(Forward(c - '0'))
@@ -104,19 +99,17 @@ object AOC_22_p2 {
                 case Forward(n)::ms => Forward(n * 10 + (c - '0')) +: ms
             }
         ).reverse
-    }
 
-    def findPath(world: World, areaMap: AreaMap, width: Int, state: State, movement: Movement): State = {
+    def findPath(world: World, areaMap: AreaMap, width: Int, state: State, movement: Movement): State =
         (state.position, state.compass, movement) match {
             case (p, c, Turn(d)) => State(p, c.turn(d))
             case (p, c, Forward(n)) =>
                 val (pos, comp) = move(world, areaMap, width, p, c, n)
                 State(pos, comp)
         }
-    }
 
     @tailrec
-    def move(world: World, areaMap: AreaMap, width: Int, position: Position, compass: Compass, steps: Int): (Position, Compass) = {
+    def move(world: World, areaMap: AreaMap, width: Int, position: Position, compass: Compass, steps: Int): (Position, Compass) =
                 steps match {
                     case 0 => (position, compass)
                     case _ =>
@@ -126,18 +119,16 @@ object AOC_22_p2 {
                               case Empty => move(world, areaMap, width, nextPos, nextCompass, steps - 1)
                           }
                 }
-    }
 
     def nextPosition(world: World, areaMap: AreaMap, width: Int, position: Position, compass: Compass): (Position, Compass) = {
         val nextPosition = compass.next(position)
         world.lift(nextPosition.y).flatMap(_.lift(nextPosition.x)).getOrElse(Nothing) match {
-            case Nothing =>
-                teleport(world, areaMap, width, position, compass)
+            case Nothing => teleport(areaMap, width, position, compass)
             case _ => (nextPosition, compass)
         }
     }
 
-    def teleport(world: World, areaMap: AreaMap, width: Int, position: Position, compass: Compass): (Position, Compass) = {
+    def teleport(areaMap: AreaMap, width: Int, position: Position, compass: Compass): (Position, Compass) = {
         val area: Area = areaMap.find(_.position == Position(position.x / width, position.y / width)).get
         val (newArea, newCompass) = area.connections(compass)
         val newAreaPosition = areaMap.find(_ == newArea).get.position
@@ -153,86 +144,70 @@ object AOC_22_p2 {
 
         }
         newCompass match {
-            case South => (Position(newAreaPosition.x * width + offset, newAreaPosition.y * width), newCompass)
-            case North => (Position(newAreaPosition.x * width + offset, newAreaPosition.y * width + width - 1), newCompass)
-            case East =>
-                (Position(newAreaPosition.x * width,             newAreaPosition.y * width + offset), newCompass)
-            case West =>
-                (Position(newAreaPosition.x * width + width - 1, newAreaPosition.y * width + offset), newCompass)
+            case South => (Position(newAreaPosition.x * width + offset,   newAreaPosition.y * width), newCompass)
+            case North => (Position(newAreaPosition.x * width + offset,   newAreaPosition.y * width + width - 1), newCompass)
+            case East => (Position(newAreaPosition.x * width,             newAreaPosition.y * width + offset), newCompass)
+            case West => (Position(newAreaPosition.x * width + width - 1, newAreaPosition.y * width + offset), newCompass)
         }
-
-
     }
 
     def populateAreas(world: World, areaWidth: Int): List[Area] = {
-        def populateAreaMapExistence(world: World, areaWidth: Int): AreaMapExistence = {
+        def populateAreaMapExistence(world: World, areaWidth: Int): AreaMapExistence =
             (0 until world.length / areaWidth).map(
-                j => (0 until world.maxBy(_.length).length / areaWidth).map {
-                    i =>
-                        world(j * areaWidth).length > (i * areaWidth) && world(j * areaWidth)(i * areaWidth) != Nothing
-                }.toArray
-            )
-        }.toArray
+                j => (0 until world.maxBy(_.length).length / areaWidth).map (
+                    i => world(j * areaWidth).length > (i * areaWidth) &&
+                      world(j * areaWidth)(i * areaWidth) != Nothing
+                ).toArray
+            ).toArray
 
-        def populateDirectConnections(areas: List[Area]): List[Area] = {
-            areas.foreach(area => {
-                compassList.foreach(compass =>
-                    areas.find(a => a.position == compass.next(area.position)).map(area2 => {
-                        area.connections.put(compass, (area2, compass))
-                        area2.connections.put(compass.opposite, (area, compass.opposite))
-                    })
-                )
-            })
-            areas
+        def linkAreas(area1: Area, area2: Area, compassFromArea1: Compass, compassToArea2: Compass, compassFromArea2: Compass): Unit = {
+            area1.connections.put(compassFromArea1, (area2, compassToArea2))
+            area2.connections.put(compassFromArea2, (area1, compassFromArea1.opposite))
         }
 
-        def populateIndirectConnections(areas: List[Area]): List[Area] = {
+        def populateDirectConnections(areas: List[Area]): Unit =
             areas.foreach(area => {
-                compassList.foreach(compass =>
-                    if (area.connections.get(compass).isEmpty) {
-                        area.connections.get(compass.turn(Left)).foreach(p => p._1.connections.get(compass).foreach(
-                            area2 => {
-                                if (area != area2._1 && area.connections.find(_._2._1 == area2._1).isEmpty) {
-                                    if (area2._2 == compass) {
-                                        area.connections.put(compass, (area2._1, area2._2.turn(Left)))
-                                        area2._1.connections.put(area2._2.turn(Right), (area, compass.opposite))
-                                    } else {
-                                        area.connections.put(compass, (area2._1, area2._2.turn(Left)))
-                                        area2._1.connections.put(area2._2.turn(Right), (area, compass.opposite))
-                                    }
+                compassList.foreach(
+                    compass => areas.find(a => a.position == compass.next(area.position)).map(
+                        area2 => linkAreas(area, area2, compass, compass, compass.opposite)
+                    )
+                )
+            })
+
+        def populateIndirectConnections(areas: List[Area]): Unit =
+            areas.foreach(
+                area => compassList.foreach {
+                    compass => if (!area.connections.contains(compass)) {
+                        area.connections.get(compass.turn(Left)).map(_._1).foreach {
+                            connectingArea =>
+                                connectingArea.connections.get(compass).foreach {
+                                    case (area2, connectingCompass) if area != area2 && !area.connections.exists(_._2._1 == area2) =>
+                                        linkAreas(area, area2, compass, connectingCompass.turn(Left), connectingCompass.turn(Right))
+                                    case _ => ()
                                 }
-                        }))
-                        area.connections.get(compass.turn(Right)).foreach(p => p._1.connections.get(compass).foreach(
-                            area2 => {
-                                if (area != area2._1 && area.connections.find(_._2._1 == area2._1).isEmpty) {
-                                    if (area2._2 == compass) {
-                                        area.connections.put(compass, (area2._1, area2._2.turn(Right))) //area2._2.turn(Right)))
-                                        area2._1.connections.put(area2._2.turn(Left), (area, compass.opposite))
-                                    } else {
-                                        area.connections.put(compass, (area2._1, area2._2.turn(Right)))
-                                        area2._1.connections.put(area2._2.turn(Left), (area, compass.opposite))
-                                    }
+                        }
+                        area.connections.get(compass.turn(Right)).map(_._1).foreach {
+                            connectingArea =>
+                                connectingArea.connections.get(compass).foreach {
+                                    case (area2, connectingCompass) if area != area2 && !area.connections.exists(_._2._1 == area2) =>
+                                        linkAreas(area, area2, compass, connectingCompass.turn(Right), connectingCompass.turn(Left))
+                                    case _ => ()
                                 }
-                            }))
+                        }
                     }
-                )
-            })
-            areas
-        }
+                }
+            )
 
         val areaMapExistence = populateAreaMapExistence(world, areaWidth)
         val areaPositions = for {
             (row, j) <- areaMapExistence.zipWithIndex
             (cell, i) <- row.zipWithIndex
-            if cell == true
+            if cell
         } yield Position(i, j)
 
-        var areas = areaPositions.zipWithIndex.map(e => Area(e._2, e._1, mutable.Map[Compass, (Area, Compass)]())).toList
-
-        areas = populateDirectConnections(areas)
-        areas = populateIndirectConnections(areas)
-        areas = populateIndirectConnections(areas)
-        areas = populateIndirectConnections(areas)
+        val areas = areaPositions.zipWithIndex.map(e => Area(e._2, e._1, mutable.Map[Compass, (Area, Compass)]())).toList
+        populateDirectConnections(areas)
+        (0 to 3).foreach(_ => populateIndirectConnections(areas))
         areas
     }
 
